@@ -1,7 +1,6 @@
 import Puppet from "../puppet"
 import {sayFaucetLog} from "../utils/promots"
 import {readFile} from "fs/promises"
-import {program} from "commander"
 import PuppetOptions from "../utils/PuppetOptions";
 
 interface FaucetOptions {
@@ -20,13 +19,14 @@ export const runFaucet = async (project: string, options: FaucetOptions) => {
 		channelId: string,
 		type: string,
 		cycle: number,
-		arg1: string
+		arg1: string,
+		args: string[]
 	}>
 	const faucetInfo = faucets[project]
 	if (!faucetInfo) {
 		throw new Error(`Faucet attempt failed: 'project' ${project} is not found in faucets.json.`)
 	}
-	const {serverId, channelId, type, cycle, arg1} = faucetInfo
+	const {serverId, channelId, type, cycle, arg1, args} = faucetInfo
 	const {token, account, headless} = options
 	const puppet = new Puppet(PuppetOptions(token, headless))
 	await puppet.start()
@@ -37,9 +37,30 @@ export const runFaucet = async (project: string, options: FaucetOptions) => {
 			puppet.sendMessage(arg1 + ' ' + account)
 		}, cycle * 1000)
 	} else {
-		puppet.sendCommand(arg1, account)
-		setInterval(() => {
-			puppet.sendCommand(arg1, account)
-		}, cycle * 1000)
+		if (arg1 != null) {
+			puppet.sendCommand(arg1, account);
+			setInterval(() => {
+				puppet.sendCommand(arg1, account);
+			}, cycle * 1000);
+		} else if (Array.isArray(args)) {
+			let delay = 0;
+			args.forEach(arg => {
+				setTimeout(() => {
+					puppet.sendCommand(arg, account);
+				}, delay);
+				delay += 10000;
+			});
+			setInterval(() => {
+				let delay = 0;
+				args.forEach(arg => {
+					setTimeout(() => {
+						puppet.sendCommand(arg, account);
+					}, delay);
+					delay += 10000;
+				});
+			}, cycle * 1000);
+		} else {
+			throw new Error(`${project} args or arg1 not found.`);
+		}
 	}
 }
